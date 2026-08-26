@@ -72,6 +72,20 @@ An `.imeta` file is line-oriented. Each non-blank, non-comment line is
 `key: value` or `key = value`. Lines starting with `#` are comments and
 blank lines are ignored.
 
+A quoted value that isn't closed on its own line is taken to continue on
+the following lines, up to the line that closes it:
+
+```
+notes: "shot on the ferry,
+came out grainier than I wanted"
+```
+
+normalizes to a single line, with the break kept as `\n`:
+
+```
+notes = "shot on the ferry,\ncame out grainier than I wanted"
+```
+
 - `tags` / `keywords` - comma-separated list, becomes a bracketed list
 - `date_taken` / `date` - `Y-M-D` with any of `-`, `/`, `.` as the
   separator, becomes zero-padded `YYYY-MM-DD`
@@ -88,10 +102,10 @@ non-zero exit code.
 
 ## Status
 
-Early. The parser is line-based and only understands the fields above by
-name - it doesn't yet validate values against a schema, doesn't support
-multi-line values, and there's no way to normalize a whole directory at
-once. See the issues for what's next.
+Early. The parser only understands the fields above by name - it doesn't
+yet validate values against a schema, and there's no way to normalize a
+whole directory at once, only a single file. See the issues for what's
+next.
 
 ## Building
 

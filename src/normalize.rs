@@ -24,7 +24,7 @@ fn normalize_key(raw: &str) -> String {
 }
 
 fn normalize_scalar(raw: &str) -> String {
-    format!("\"{}\"", strip_quotes(raw))
+    format!("\"{}\"", escape_newlines(strip_quotes(raw)))
 }
 
 fn strip_quotes(value: &str) -> &str {
@@ -36,12 +36,19 @@ fn strip_quotes(value: &str) -> &str {
     }
 }
 
+// Values that spanned multiple lines in the source carry real `\n`
+// characters; the canonical form stays one line per entry, so those get
+// written back out as the two-character escape instead.
+fn escape_newlines(value: &str) -> String {
+    value.replace('\n', "\\n")
+}
+
 fn normalize_list(raw: &str) -> String {
     let items: Vec<String> = raw
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(|s| format!("\"{}\"", strip_quotes(s)))
+        .map(|s| format!("\"{}\"", escape_newlines(strip_quotes(s))))
         .collect();
     format!("[{}]", items.join(", "))
 }
@@ -53,17 +60,17 @@ fn normalize_date(raw: &str) -> String {
     let value = strip_quotes(raw.trim());
     let parts: Vec<&str> = value.split(['-', '/', '.']).collect();
     if parts.len() != 3 {
-        return format!("\"{}\"", value);
+        return format!("\"{}\"", escape_newlines(value));
     }
 
     let year = parts[0];
     let month: u32 = match parts[1].parse() {
         Ok(m) if (1..=12).contains(&m) => m,
-        _ => return format!("\"{}\"", value),
+        _ => return format!("\"{}\"", escape_newlines(value)),
     };
     let day: u32 = match parts[2].parse() {
         Ok(d) if (1..=31).contains(&d) => d,
-        _ => return format!("\"{}\"", value),
+        _ => return format!("\"{}\"", escape_newlines(value)),
     };
 
     format!("{}-{:02}-{:02}", year, month, day)
