@@ -95,17 +95,21 @@ notes = "shot on the ferry,\ncame out grainier than I wanted"
 
 ```
 image-metadata-fmt <file.imeta>
+image-metadata-fmt <directory>
 ```
 
 Normalized output goes to stdout; parse errors go to stderr with a
 non-zero exit code.
 
+Pointed at a directory, it normalizes every `.imeta` file directly inside
+it (not recursive), printing a `== path ==` header before each one. A
+parse error in one file doesn't stop the rest - everything that parses
+still gets printed, and the process exits non-zero if anything failed.
+
 ## Status
 
 Early. The parser only understands the fields above by name - it doesn't
-yet validate values against a schema, and there's no way to normalize a
-whole directory at once, only a single file. See the issues for what's
-next.
+yet validate values against a schema. See the issues for what's next.
 
 ## Building
 
