@@ -6,6 +6,10 @@ pub struct RawEntry {
     pub key: String,
     pub value: String,
     pub line: usize,
+    /// 1-based character column where the value starts on `line`. Kept so
+    /// schema validation can point at the value itself rather than the
+    /// start of the line.
+    pub value_col: usize,
 }
 
 /// Parses an .imeta sidecar file into raw key/value entries.
@@ -60,14 +64,14 @@ pub fn parse(input: &str) -> Result<Vec<RawEntry>, ParseError> {
         let leading_ws = rest.len() - rest.trim_start().len();
         let value_start_byte = sep_byte + 1 + leading_ws;
         let first_part = rest.trim();
+        let value_col = char_col(raw_line, value_start_byte);
 
         let (value, next_i) = if first_part.starts_with('"') && !is_closed_string(first_part) {
-            let start_col = char_col(raw_line, value_start_byte);
             match read_multiline_string(&lines, i, first_part) {
                 Some((joined, end_idx)) => (format!("\"{}\"", joined), end_idx + 1),
                 None => {
                     return Err(ParseError::new(
-                        Position { line: line_no, col: start_col },
+                        Position { line: line_no, col: value_col },
                         "unterminated string literal",
                         raw_line.to_string(),
                     ));
@@ -81,6 +85,7 @@ pub fn parse(input: &str) -> Result<Vec<RawEntry>, ParseError> {
             key: key.to_string(),
             value,
             line: line_no,
+            value_col,
         });
         i = next_i;
     }

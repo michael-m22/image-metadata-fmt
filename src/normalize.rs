@@ -19,7 +19,7 @@ pub fn normalize(entries: &[RawEntry]) -> String {
     out
 }
 
-fn normalize_key(raw: &str) -> String {
+pub(crate) fn normalize_key(raw: &str) -> String {
     raw.trim().to_lowercase().replace([' ', '-'], "_")
 }
 
@@ -27,7 +27,7 @@ fn normalize_scalar(raw: &str) -> String {
     format!("\"{}\"", escape_newlines(strip_quotes(raw)))
 }
 
-fn strip_quotes(value: &str) -> &str {
+pub(crate) fn strip_quotes(value: &str) -> &str {
     let trimmed = value.trim();
     if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
         &trimmed[1..trimmed.len() - 1]
@@ -55,23 +55,36 @@ fn normalize_list(raw: &str) -> String {
 
 /// Accepts `YYYY-M-D`, `YYYY/M/D`, or `YYYY.M.D` and zero-pads month/day.
 /// Anything that doesn't parse as three numeric parts is left as a quoted
-/// string rather than silently guessed at.
+/// string rather than silently guessed at. In the normal CLI flow, schema
+/// validation rejects unparseable dates before this ever runs, but this
+/// stays defensive for direct callers.
 fn normalize_date(raw: &str) -> String {
     let value = strip_quotes(raw.trim());
+    match parse_date_parts(value) {
+        Some((year, month, day)) => format!("{}-{:02}-{:02}", year, month, day),
+        None => format!("\"{}\"", escape_newlines(value)),
+    }
+}
+
+/// Splits a date value into (year, month, day) if it's three numeric parts
+/// separated by `-`, `/`, or `.`, with month and day in range. Shared with
+/// schema validation so "what counts as a valid date" is defined in one
+/// place.
+pub(crate) fn parse_date_parts(value: &str) -> Option<(&str, u32, u32)> {
     let parts: Vec<&str> = value.split(['-', '/', '.']).collect();
     if parts.len() != 3 {
-        return format!("\"{}\"", escape_newlines(value));
+        return None;
     }
 
     let year = parts[0];
-    let month: u32 = match parts[1].parse() {
-        Ok(m) if (1..=12).contains(&m) => m,
-        _ => return format!("\"{}\"", escape_newlines(value)),
-    };
-    let day: u32 = match parts[2].parse() {
-        Ok(d) if (1..=31).contains(&d) => d,
-        _ => return format!("\"{}\"", escape_newlines(value)),
-    };
-
-    format!("{}-{:02}-{:02}", year, month, day)
+    if year.is_empty() || !year.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let month: u32 = parts[1].parse().ok()?;
+    let day: u32 = parts[2].parse().ok()?;
+    if (1..=12).contains(&month) && (1..=31).contains(&day) {
+        Some((year, month, day))
+    } else {
+        None
+    }
 }

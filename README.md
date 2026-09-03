@@ -91,6 +91,19 @@ notes = "shot on the ferry,\ncame out grainier than I wanted"
   separator, becomes zero-padded `YYYY-MM-DD`
 - anything else - treated as a quoted scalar string
 
+A `date_taken` value that isn't three numeric parts, or has a month or day
+out of range, is rejected rather than passed through - it gets the same
+line/column error treatment as a parse failure:
+
+```
+$ image-metadata-fmt bad-date.imeta
+error: 'next tuesday' is not a valid date, expected Y-M-D
+  |
+1 | date_taken: next tuesday
+  |             ^
+  at line 1, column 13
+```
+
 ## Usage
 
 ```
@@ -108,8 +121,10 @@ still gets printed, and the process exits non-zero if anything failed.
 
 ## Status
 
-Early. The parser only understands the fields above by name - it doesn't
-yet validate values against a schema. See the issues for what's next.
+Early. The known fields (`tags`, `keywords`, `date_taken`, `date`) are
+validated against their expected shape; anything else is treated as a
+freeform string with no validation. There's no `--check` or `--write`
+mode yet - it only ever prints the normalized form to stdout.
 
 ## Building
 

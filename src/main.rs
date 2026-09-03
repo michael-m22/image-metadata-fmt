@@ -6,6 +6,7 @@ use std::process;
 mod error;
 mod normalize;
 mod parser;
+mod schema;
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -83,6 +84,10 @@ fn process_file(path: &Path) -> bool {
 
     match parser::parse(&input) {
         Ok(entries) => {
+            if let Err(e) = schema::validate(&entries, &input) {
+                eprintln!("{}", e);
+                return false;
+            }
             print!("{}", normalize::normalize(&entries));
             true
         }
