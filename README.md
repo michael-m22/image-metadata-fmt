@@ -109,6 +109,7 @@ error: 'next tuesday' is not a valid date, expected Y-M-D
 ```
 image-metadata-fmt <file.imeta>
 image-metadata-fmt <directory>
+image-metadata-fmt --check <file.imeta | directory>
 ```
 
 Normalized output goes to stdout; parse errors go to stderr with a
@@ -119,12 +120,19 @@ it (not recursive), printing a `== path ==` header before each one. A
 parse error in one file doesn't stop the rest - everything that parses
 still gets printed, and the process exits non-zero if anything failed.
 
+`--check` doesn't print the normalized form. It prints the path of any
+file whose contents aren't already exactly the canonical output -
+including a file with comments or blank lines, since those get dropped by
+normalization - and exits non-zero if it printed anything or if a file
+failed to parse or validate. Nothing is written to the file itself.
+
 ## Status
 
 Early. The known fields (`tags`, `keywords`, `date_taken`, `date`) are
 validated against their expected shape; anything else is treated as a
-freeform string with no validation. There's no `--check` or `--write`
-mode yet - it only ever prints the normalized form to stdout.
+freeform string with no validation. There's no `--write` mode yet to
+normalize a file in place - `--check` only reports, and the default mode
+only prints to stdout.
 
 ## Building
 

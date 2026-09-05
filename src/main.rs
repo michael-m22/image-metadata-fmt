@@ -8,15 +8,40 @@ mod normalize;
 mod parser;
 mod schema;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// Print the normalized form to stdout.
+    Print,
+    /// Print the path of any file whose normalized form differs from what's
+    /// on disk (or that fails to parse/validate) and exit non-zero, without
+    /// printing normalized content. Mirrors `gofmt -l`.
+    Check,
+}
+
+const USAGE: &str = "usage: image-metadata-fmt [--check] <file.imeta | directory>";
+
 fn main() {
-    let mut args = env::args().skip(1);
-    let path = match args.next() {
+    let mut check = false;
+    let mut path: Option<String> = None;
+    for arg in env::args().skip(1) {
+        if arg == "--check" {
+            check = true;
+        } else if path.is_none() {
+            path = Some(arg);
+        } else {
+            eprintln!("{}", USAGE);
+            process::exit(2);
+        }
+    }
+
+    let path = match path {
         Some(p) => p,
         None => {
-            eprintln!("usage: image-metadata-fmt <file.imeta | directory>");
+            eprintln!("{}", USAGE);
             process::exit(2);
         }
     };
+    let mode = if check { Mode::Check } else { Mode::Print };
 
     let metadata = match fs::metadata(&path) {
         Ok(m) => m,
@@ -27,9 +52,9 @@ fn main() {
     };
 
     let ok = if metadata.is_dir() {
-        process_dir(Path::new(&path))
+        process_dir(Path::new(&path), mode)
     } else {
-        process_file(Path::new(&path))
+        process_file(Path::new(&path), mode)
     };
 
     if !ok {
@@ -42,7 +67,7 @@ fn main() {
 /// level that makes sense). Files are visited in name order so output is
 /// stable between runs. One bad file doesn't stop the rest: everything that
 /// parses gets printed, and the exit code reflects whether anything failed.
-fn process_dir(dir: &Path) -> bool {
+fn process_dir(dir: &Path, mode: Mode) -> bool {
     let read_dir = match fs::read_dir(dir) {
         Ok(rd) => rd,
         Err(e) => {
@@ -65,15 +90,19 @@ fn process_dir(dir: &Path) -> bool {
 
     let mut ok = true;
     for path in paths {
-        println!("== {} ==", path.display());
-        if !process_file(&path) {
+        // The "== path ==" header decorates printed output; in check mode
+        // any file that needs normalizing already prints its own path.
+        if mode == Mode::Print {
+            println!("== {} ==", path.display());
+        }
+        if !process_file(&path, mode) {
             ok = false;
         }
     }
     ok
 }
 
-fn process_file(path: &Path) -> bool {
+fn process_file(path: &Path, mode: Mode) -> bool {
     let input = match fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => {
@@ -82,18 +111,32 @@ fn process_file(path: &Path) -> bool {
         }
     };
 
-    match parser::parse(&input) {
-        Ok(entries) => {
-            if let Err(e) = schema::validate(&entries, &input) {
-                eprintln!("{}", e);
-                return false;
-            }
-            print!("{}", normalize::normalize(&entries));
-            true
-        }
+    let entries = match parser::parse(&input) {
+        Ok(entries) => entries,
         Err(e) => {
             eprintln!("{}", e);
-            false
+            return false;
+        }
+    };
+
+    if let Err(e) = schema::validate(&entries, &input) {
+        eprintln!("{}", e);
+        return false;
+    }
+
+    let normalized = normalize::normalize(&entries);
+    match mode {
+        Mode::Print => {
+            print!("{}", normalized);
+            true
+        }
+        Mode::Check => {
+            if normalized == input {
+                true
+            } else {
+                println!("{}", path.display());
+                false
+            }
         }
     }
 }
