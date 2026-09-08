@@ -110,6 +110,7 @@ error: 'next tuesday' is not a valid date, expected Y-M-D
 image-metadata-fmt <file.imeta>
 image-metadata-fmt <directory>
 image-metadata-fmt --check <file.imeta | directory>
+image-metadata-fmt --write <file.imeta | directory>
 ```
 
 Normalized output goes to stdout; parse errors go to stderr with a
@@ -126,13 +127,18 @@ including a file with comments or blank lines, since those get dropped by
 normalization - and exits non-zero if it printed anything or if a file
 failed to parse or validate. Nothing is written to the file itself.
 
+`--write` normalizes the file in place. It prints the path of any file it
+actually rewrites (a file that's already normalized is left untouched and
+not printed) and exits non-zero if any file failed to parse, validate, or
+be written. As with `--check`, this drops comments and blank lines, since
+those aren't part of the canonical form - there's no round trip that
+preserves them. `--check` and `--write` can't be used together.
+
 ## Status
 
 Early. The known fields (`tags`, `keywords`, `date_taken`, `date`) are
 validated against their expected shape; anything else is treated as a
-freeform string with no validation. There's no `--write` mode yet to
-normalize a file in place - `--check` only reports, and the default mode
-only prints to stdout.
+freeform string with no validation.
 
 ## Building
 

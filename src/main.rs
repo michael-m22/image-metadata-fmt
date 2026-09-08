@@ -16,22 +16,33 @@ enum Mode {
     /// on disk (or that fails to parse/validate) and exit non-zero, without
     /// printing normalized content. Mirrors `gofmt -l`.
     Check,
+    /// Overwrite the file with its normalized form. Prints the path of any
+    /// file that actually changed. Mirrors `gofmt -w`.
+    Write,
 }
 
-const USAGE: &str = "usage: image-metadata-fmt [--check] <file.imeta | directory>";
+const USAGE: &str = "usage: image-metadata-fmt [--check | --write] <file.imeta | directory>";
 
 fn main() {
     let mut check = false;
+    let mut write = false;
     let mut path: Option<String> = None;
     for arg in env::args().skip(1) {
         if arg == "--check" {
             check = true;
+        } else if arg == "--write" {
+            write = true;
         } else if path.is_none() {
             path = Some(arg);
         } else {
             eprintln!("{}", USAGE);
             process::exit(2);
         }
+    }
+
+    if check && write {
+        eprintln!("error: --check and --write are mutually exclusive");
+        process::exit(2);
     }
 
     let path = match path {
@@ -41,7 +52,13 @@ fn main() {
             process::exit(2);
         }
     };
-    let mode = if check { Mode::Check } else { Mode::Print };
+    let mode = if check {
+        Mode::Check
+    } else if write {
+        Mode::Write
+    } else {
+        Mode::Print
+    };
 
     let metadata = match fs::metadata(&path) {
         Ok(m) => m,
@@ -90,8 +107,8 @@ fn process_dir(dir: &Path, mode: Mode) -> bool {
 
     let mut ok = true;
     for path in paths {
-        // The "== path ==" header decorates printed output; in check mode
-        // any file that needs normalizing already prints its own path.
+        // The "== path ==" header decorates printed output; check and write
+        // modes print their own per-file path (or nothing) instead.
         if mode == Mode::Print {
             println!("== {} ==", path.display());
         }
@@ -136,6 +153,21 @@ fn process_file(path: &Path, mode: Mode) -> bool {
             } else {
                 println!("{}", path.display());
                 false
+            }
+        }
+        Mode::Write => {
+            if normalized == input {
+                return true;
+            }
+            match fs::write(path, &normalized) {
+                Ok(()) => {
+                    println!("{}", path.display());
+                    true
+                }
+                Err(e) => {
+                    eprintln!("error: could not write {}: {}", path.display(), e);
+                    false
+                }
             }
         }
     }
