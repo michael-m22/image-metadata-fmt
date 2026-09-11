@@ -178,4 +178,40 @@ mod tests {
         let entries = parse(input).unwrap();
         assert_eq!(entries[0].value, "\"Sunset over the bay\"");
     }
+
+    #[test]
+    fn missing_separator_reports_column_past_the_last_character() {
+        let input = "no separator here\n";
+        let err = parse(input).unwrap_err();
+        assert_eq!(err.pos.line, 1);
+        assert_eq!(err.pos.col, "no separator here".chars().count() + 1);
+        assert!(err.message.contains("':' or '='"));
+    }
+
+    #[test]
+    fn missing_separator_on_second_line_reports_that_line_number() {
+        let input = "title: ok\nno separator here\n";
+        let err = parse(input).unwrap_err();
+        assert_eq!(err.pos.line, 2);
+    }
+
+    #[test]
+    fn empty_key_before_separator_reports_column_one() {
+        let input = "  : value\n";
+        let err = parse(input).unwrap_err();
+        assert_eq!(err.pos.line, 1);
+        assert_eq!(err.pos.col, 1);
+        assert!(err.message.contains("empty key"));
+    }
+
+    #[test]
+    fn unterminated_string_column_is_character_based_not_byte_based() {
+        // 'é' is two bytes in UTF-8; if the column were computed from byte
+        // offsets instead of char offsets, this would point one column too
+        // far to the right.
+        let input = "café: \"unterminated\n";
+        let err = parse(input).unwrap_err();
+        assert_eq!(err.pos.line, 1);
+        assert_eq!(err.pos.col, 7);
+    }
 }
