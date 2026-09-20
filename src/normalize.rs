@@ -88,3 +88,95 @@ pub(crate) fn parse_date_parts(value: &str) -> Option<(&str, u32, u32)> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::RawEntry;
+
+    fn entry(key: &str, value: &str) -> RawEntry {
+        RawEntry {
+            key: key.to_string(),
+            value: value.to_string(),
+            line: 1,
+            value_col: 1,
+        }
+    }
+
+    #[test]
+    fn normalize_key_lowercases_and_joins_separators() {
+        assert_eq!(normalize_key("Date Taken"), "date_taken");
+        assert_eq!(normalize_key("date-taken"), "date_taken");
+        assert_eq!(normalize_key("DATE_TAKEN"), "date_taken");
+    }
+
+    #[test]
+    fn strip_quotes_removes_matching_quotes_only() {
+        assert_eq!(strip_quotes("\"mike\""), "mike");
+        assert_eq!(strip_quotes("mike"), "mike");
+        assert_eq!(strip_quotes("\"unbalanced"), "\"unbalanced");
+    }
+
+    #[test]
+    fn parse_date_parts_accepts_any_of_the_three_separators() {
+        assert_eq!(parse_date_parts("2023-3-4"), Some(("2023", 3, 4)));
+        assert_eq!(parse_date_parts("2023/3/4"), Some(("2023", 3, 4)));
+        assert_eq!(parse_date_parts("2023.3.4"), Some(("2023", 3, 4)));
+    }
+
+    #[test]
+    fn parse_date_parts_rejects_out_of_range_month_or_day() {
+        assert_eq!(parse_date_parts("2023-13-4"), None);
+        assert_eq!(parse_date_parts("2023-3-32"), None);
+    }
+
+    #[test]
+    fn parse_date_parts_rejects_non_numeric_year() {
+        assert_eq!(parse_date_parts("unknown-3-4"), None);
+    }
+
+    #[test]
+    fn normalize_scalar_quotes_and_escapes_embedded_newline() {
+        let out = normalize(&[entry("artist", "mike")]);
+        assert_eq!(out, "artist = \"mike\"\n");
+
+        let out = normalize(&[entry("notes", "\"line one\nline two\"")]);
+        assert_eq!(out, "notes = \"line one\\nline two\"\n");
+    }
+
+    #[test]
+    fn normalize_list_trims_items_and_drops_trailing_comma() {
+        let out = normalize(&[entry("tags", "beach, sunset,  golden hour,")]);
+        assert_eq!(out, "tags = [\"beach\", \"sunset\", \"golden hour\"]\n");
+    }
+
+    #[test]
+    fn keywords_alias_normalizes_to_tags_key() {
+        let out = normalize(&[entry("keywords", "beach")]);
+        assert_eq!(out, "tags = [\"beach\"]\n");
+    }
+
+    #[test]
+    fn normalize_date_zero_pads_month_and_day() {
+        let out = normalize(&[entry("date_taken", "2023-3-4")]);
+        assert_eq!(out, "date_taken = 2023-03-04\n");
+    }
+
+    #[test]
+    fn date_alias_normalizes_to_date_taken_key() {
+        let out = normalize(&[entry("date", "2023/3/4")]);
+        assert_eq!(out, "date_taken = 2023-03-04\n");
+    }
+
+    #[test]
+    fn unparseable_date_falls_back_to_quoted_string() {
+        let out = normalize(&[entry("date_taken", "next tuesday")]);
+        assert_eq!(out, "date_taken = \"next tuesday\"\n");
+    }
+
+    #[test]
+    fn multiple_entries_produce_one_line_each_in_order() {
+        let out = normalize(&[entry("title", "sunset"), entry("artist", "mike")]);
+        assert_eq!(out, "title = \"sunset\"\nartist = \"mike\"\n");
+    }
+}
